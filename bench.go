@@ -23,11 +23,13 @@ type timePoint struct {
 }
 
 type stats struct {
-	interval int
-	balanceLeaderCount int
-	balanceRegionCount int
-	prevLatency int
-	curLatency int
+	Interval               int     `json:"interval"`
+	PrevBalanceLeaderCount int     `json:"prevBalanceLeaderCount"`
+	PrevBalanceRegionCount int     `json:"prevBalanceRegionCount"`
+	CurBalanceLeaderCount  int     `json:"curBalanceLeaderCount"`
+	CurBalanceRegionCount  int     `json:"curBalanceRegionCount"`
+	PrevLatency            float64 `json:"prevLatency"`
+	CurLatency             float64 `json:"curLatency"`
 }
 
 type scaleOut struct {
@@ -46,14 +48,12 @@ func (s *scaleOut) run() error {
 		return err
 	}
 	s.t.addTime = time.Now()
-	//for {
-	//	//	time.Sleep(time.Minute)
-	//	//	if s.isBalance() {
-	//	//		return nil
-	//	//	}
-	//	//}
-	s.isBalance()
-	return nil
+	for {
+		time.Sleep(time.Minute)
+		if s.isBalance() {
+			return nil
+		}
+	}
 }
 
 func (s *scaleOut) isBalance() bool {
@@ -83,6 +83,7 @@ func (s *scaleOut) isBalance() bool {
 	if len(warnings) > 0 {
 		fmt.Printf("Warnings: %v\n", warnings)
 	}
+	fmt.Printf("Result:\n%v\n", result)
 	matrix := result.(model.Matrix)
 	for _, data := range matrix {
 		if len(data.Values) != 10 {
@@ -100,7 +101,6 @@ func (s *scaleOut) isBalance() bool {
 			return false
 		}
 	}
-	fmt.Printf("Result:\n%v\n", result)
 	fmt.Println("Balanced")
 	s.t.balanceTime = time.Now()
 	return true
@@ -115,6 +115,7 @@ func (s *scaleOut) collect() error {
 
 	// try get last report
 	lastReport, err := s.c.getLastReport()
+	fmt.Println(s.mergeReport(report, report))
 	if err != nil {
 		return err
 	}
@@ -132,7 +133,7 @@ func (s *scaleOut) collect() error {
 
 func (s *scaleOut) createReport() (string, error) {
 	//todo @zeyuan
-	rep := stats{interval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
+	rep := &stats{Interval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
 	client, err := api.NewClient(api.Config{
 		Address: s.c.prometheus,
 	})
@@ -145,8 +146,8 @@ func (s *scaleOut) createReport() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	result, warnings, err := v1api.Query(ctx,
-		"sum(rate(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"}[30s])) / " +
-		"sum(rate(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}[30s]))", s.t.addTime)
+		"sum(rate(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"}[30s])) / "+
+			"sum(rate(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}[30s]))", s.t.addTime)
 	if err != nil {
 		fmt.Printf("Error querying Prometheus: %v\n", err)
 		os.Exit(1)
@@ -155,6 +156,87 @@ func (s *scaleOut) createReport() (string, error) {
 		fmt.Printf("Warnings: %v\n", warnings)
 	}
 	fmt.Printf("Result:\n%v\n", result)
+	vector := result.(model.Vector)
+	if len(vector) >= 1 {
+		rep.PrevLatency = float64(vector[0].Value)
+	}
+
+	result, warnings, err = v1api.Query(ctx,
+		"sum(rate(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"}[30s])) / "+
+			"sum(rate(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}[30s]))", s.t.balanceTime)
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	fmt.Printf("Result:\n%v\n", result)
+	vector = result.(model.Vector)
+	if len(vector) >= 1 {
+		rep.CurLatency = float64(vector[0].Value)
+	}
+
+	result, warnings, err = v1api.Query(ctx,
+		"pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.balanceTime)
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	fmt.Printf("Result:\n%v\n", result)
+	vector = result.(model.Vector)
+	if len(vector) >= 1 {
+		rep.CurBalanceLeaderCount = int(vector[0].Value)
+	}
+
+	result, warnings, err = v1api.Query(ctx,
+		"pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.balanceTime)
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	fmt.Printf("Result:\n%v\n", result)
+	vector = result.(model.Vector)
+	if len(vector) >= 1 {
+		rep.CurBalanceRegionCount = int(vector[0].Value)
+	}
+
+	result, warnings, err = v1api.Query(ctx,
+		"pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.addTime)
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	fmt.Printf("Result:\n%v\n", result)
+	vector = result.(model.Vector)
+	if len(vector) >= 1 {
+		rep.PrevBalanceLeaderCount = int(vector[0].Value)
+	}
+
+	result, warnings, err = v1api.Query(ctx,
+		"pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.addTime)
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+
+	vector = result.(model.Vector)
+	if len(vector) >= 1 {
+		rep.PrevBalanceRegionCount = int(vector[0].Value)
+	}
+	fmt.Printf("percentage %d is %%", 10)
 	bytes, err := json.Marshal(rep)
 	return string(bytes), err
 }
@@ -162,9 +244,23 @@ func (s *scaleOut) createReport() (string, error) {
 // lastReport is
 func (s *scaleOut) mergeReport(lastReport, report string) (plainText string) {
 	//todo @zeyuan
-	last := stats{}
-	cur := stats{}
+	last := &stats{}
+	cur := &stats{}
 	json.Unmarshal([]byte(lastReport), last)
 	json.Unmarshal([]byte(report), cur)
-	return ""
+	plainText = fmt.Sprintf(plainText+"Balance interval is %d, compared to origin by %.2f\n",
+		last.Interval, float64((last.Interval-cur.Interval)/(cur.Interval+1)))
+	plainText = fmt.Sprintf(plainText+"Prev Balance leader is %.2f, compared to origin by %.2f\n",
+		float64(last.PrevBalanceLeaderCount), float64((last.PrevBalanceLeaderCount-cur.PrevBalanceLeaderCount)/(cur.PrevBalanceLeaderCount+1)))
+	plainText = fmt.Sprintf(plainText+"Prev balance region is %.2f, compared to origin by %.2f\n",
+		float64(last.PrevBalanceRegionCount), float64((last.PrevBalanceRegionCount-cur.PrevBalanceRegionCount)/(cur.PrevBalanceRegionCount+1)))
+	plainText = fmt.Sprintf(plainText+"Cur balance leader is %.2f, compared to origin by %.2f\n",
+		float64(last.PrevBalanceLeaderCount), float64((last.PrevBalanceLeaderCount-cur.PrevBalanceLeaderCount)/(cur.PrevBalanceLeaderCount+1)))
+	plainText = fmt.Sprintf(plainText+"Cur balance region is %.2f, compared to origin by %.2f\n",
+		float64(last.PrevBalanceRegionCount), float64((last.PrevBalanceRegionCount-cur.PrevBalanceRegionCount)/(cur.PrevBalanceRegionCount+1)))
+	plainText = fmt.Sprintf(plainText+"Prev latency is %.2f, compared to origin by %.2f\n",
+		last.PrevLatency, (last.PrevLatency-cur.PrevLatency)/(cur.PrevLatency+1))
+	plainText = fmt.Sprintf(plainText+"Cur latency is %.2f, compared to origin by %.2f\n",
+		last.CurLatency, (last.CurLatency-cur.CurLatency)/(cur.CurLatency+1))
+	return
 }
