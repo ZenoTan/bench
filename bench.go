@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/prometheus/common/model"
 	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
 )
 
 type bench interface {
@@ -16,8 +17,22 @@ type bench interface {
 	collect() error
 }
 
+type timePoint struct {
+	addTime     time.Time
+	balanceTime time.Time
+}
+
+type stats struct {
+	interval int
+	balanceLeaderCount int
+	balanceRegionCount int
+	prevLatency int
+	curLatency int
+}
+
 type scaleOut struct {
 	c *cluster
+	t timePoint
 }
 
 func newScaleOut(c *cluster) *scaleOut {
@@ -30,6 +45,7 @@ func (s *scaleOut) run() error {
 	if err := s.c.addStore(); err != nil {
 		return err
 	}
+	s.t.addTime = time.Now()
 	//for {
 	//	//	time.Sleep(time.Minute)
 	//	//	if s.isBalance() {
@@ -80,12 +96,13 @@ func (s *scaleOut) isBalance() bool {
 		for _, v := range data.Values {
 			dev += (float64(v.Value) - mean) * (float64(v.Value) - mean) / 10
 		}
-		if mean * mean * 0.1 < dev {
+		if mean*mean*0.1 < dev {
 			return false
 		}
 	}
 	fmt.Printf("Result:\n%v\n", result)
 	fmt.Println("Balanced")
+	s.t.balanceTime = time.Now()
 	return true
 }
 
@@ -115,11 +132,39 @@ func (s *scaleOut) collect() error {
 
 func (s *scaleOut) createReport() (string, error) {
 	//todo @zeyuan
-	return "", nil
+	rep := stats{interval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
+	client, err := api.NewClient(api.Config{
+		Address: s.c.prometheus,
+	})
+	if err != nil {
+		fmt.Printf("Error creating client: %v\n", err)
+		os.Exit(1)
+	}
+
+	v1api := v1.NewAPI(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, warnings, err := v1api.Query(ctx,
+		"sum(rate(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"}[30s])) / " +
+		"sum(rate(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}[30s]))", s.t.addTime)
+	if err != nil {
+		fmt.Printf("Error querying Prometheus: %v\n", err)
+		os.Exit(1)
+	}
+	if len(warnings) > 0 {
+		fmt.Printf("Warnings: %v\n", warnings)
+	}
+	fmt.Printf("Result:\n%v\n", result)
+	bytes, err := json.Marshal(rep)
+	return string(bytes), err
 }
 
 // lastReport is
 func (s *scaleOut) mergeReport(lastReport, report string) (plainText string) {
 	//todo @zeyuan
+	last := stats{}
+	cur := stats{}
+	json.Unmarshal([]byte(lastReport), last)
+	json.Unmarshal([]byte(report), cur)
 	return ""
 }
