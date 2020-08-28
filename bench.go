@@ -92,8 +92,7 @@ func (s *scaleOut) isBalance() (bool, error) {
 	}
 	result, warnings, err := v1api.QueryRange(ctx, "pd_scheduler_store_status{type=\"region_score\"}", r)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
-		return false, nil
+		return false, err
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
