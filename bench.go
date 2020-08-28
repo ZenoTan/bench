@@ -74,8 +74,8 @@ func (s *scaleOut) isBalance() bool {
 		Address: s.c.prometheus,
 	})
 	if err != nil {
-		fmt.Printf("Error creating client: %v\n", err)
-		//os.Exit(1)
+		log.Error("Error creating client", zap.Error(err))
+
 	}
 
 	v1api := v1.NewAPI(client)
@@ -89,7 +89,6 @@ func (s *scaleOut) isBalance() bool {
 	result, warnings, err := v1api.QueryRange(ctx, "pd_scheduler_store_status{type=\"region_score\"}", r)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -152,19 +151,17 @@ func (s *scaleOut) createReport() (string, error) {
 		Address: s.c.prometheus,
 	})
 	if err != nil {
-		fmt.Printf("Error creating client: %v\n", err)
-		//os.Exit(1)
+		log.Error("Error creating client", zap.Error(err))
 	}
 
 	v1api := v1.NewAPI(client)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	result, warnings, err := v1api.Query(ctx,
-		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})" +
-		" / sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"})", s.t.addTime)
+		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
+			" / sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"})", s.t.addTime)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -176,11 +173,10 @@ func (s *scaleOut) createReport() (string, error) {
 	}
 
 	result, warnings, err = v1api.Query(ctx,
-		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})" +
+		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
 			" / sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"})", s.t.balanceTime)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -195,7 +191,6 @@ func (s *scaleOut) createReport() (string, error) {
 		"pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.balanceTime)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -210,7 +205,6 @@ func (s *scaleOut) createReport() (string, error) {
 		"pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.balanceTime)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -225,7 +219,6 @@ func (s *scaleOut) createReport() (string, error) {
 		"pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.addTime)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -240,7 +233,6 @@ func (s *scaleOut) createReport() (string, error) {
 		"pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.addTime)
 	if err != nil {
 		log.Error("Error querying Prometheus", zap.Error(err))
-		//os.Exit(1)
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
