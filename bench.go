@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pingcap/log"
 	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
 )
 
 type bench interface {
@@ -134,7 +136,7 @@ func (s *scaleOut) collect() error {
 		plainText = ""
 	} else { //second send
 		plainText, err = s.mergeReport(lastReport.Data, data)
-		fmt.Println(plainText)
+		log.Info("Merge report success", zap.String("merge result", plainText))
 		if err != nil {
 			return err
 		}
