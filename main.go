@@ -25,14 +25,14 @@ func main() {
 	var prometheusServer = os.Getenv("PROM_ADDR")
 	var apiServer = os.Getenv("API_SERVER")
 	cluster := newCluster(clusterName, tidbServer, pdServer, prometheusServer, apiServer)
-
 	// load data
-	loader := newBr(cluster)
+	loader := newYcsb(cluster)
+	log.Info("load start")
 	err := loader.load()
 	if err != nil {
 		log.Fatal("failed when load", zap.Error(err))
 	}
-	log.Info("finish load")
+	log.Info("load finish")
 
 	// bench
 	bench := newBench("scaleOut", cluster)
@@ -44,12 +44,12 @@ func main() {
 	if err != nil {
 		log.Fatal("failed when bench", zap.Error(err))
 	}
-	log.Info("finish bench")
+	log.Info("bench finish")
 
 	// sendReport
 	err = bench.collect()
 	if err != nil {
 		log.Fatal("failed when collect report", zap.Error(err))
 	}
-	log.Info("finish report")
+	log.Info("report finish")
 }
