@@ -119,7 +119,7 @@ func (c *cluster) sendReport(data, plainText string) error {
 	url := c.joinUrl(prefix)
 	return postJSON(url, map[string]interface{}{
 		"data":      data,
-		"report": plainText,
+		"plaintext": plainText,
 	})
 }
 
