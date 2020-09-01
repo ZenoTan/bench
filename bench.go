@@ -62,7 +62,7 @@ func (s *scaleOut) run() error {
 	}
 	s.t.addTime = time.Now()
 	for {
-		//time.Sleep(time.Minute)
+		time.Sleep(time.Minute)
 		bal, err := s.isBalance()
 		if err != nil {
 			return err
@@ -131,7 +131,7 @@ func (s *scaleOut) collect() error {
 	if err != nil {
 		return err
 	}
-
+	fmt.Println(s.mergeReport(data, data))
 	// send data
 	var plainText string
 	if lastReport == nil { //first send
@@ -275,7 +275,7 @@ func (s *scaleOut) createReport() (string, error) {
 func reportLine(head string, last float64, cur float64) string {
 	headPart := "\t* " + head + ": "
 	curPart := fmt.Sprintf("%.2f ", cur)
-	deltaPart := fmt.Sprintf("delta: %.2f%%\n", (cur-last)*100/(last+1))
+	deltaPart := fmt.Sprintf("delta: %.2f%%  \n", (cur-last)*100/(last+1))
 	return headPart + curPart + deltaPart
 }
 
@@ -299,10 +299,10 @@ func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err
 	splitLine += "\n"
 	plainText += title
 	plainText += splitLine
-	balanceTag := "balance:\n"
-	scheduleTag := "schedule:\n"
-	compactionTag := "compaction:\n"
-	latencyTag := "latency:\n"
+	balanceTag := "balance:  \n"
+	scheduleTag := "schedule:  \n"
+	compactionTag := "compaction:  \n"
+	latencyTag := "latency:  \n"
 	plainText += balanceTag + reportLine("balance_time", float64(last.BalanceInterval), float64(cur.BalanceInterval))
 	plainText += scheduleTag + reportLine("balance_leader",
 		float64(last.CurBalanceLeaderCount-last.PrevBalanceLeaderCount), float64(cur.CurBalanceLeaderCount-cur.PrevBalanceLeaderCount))
