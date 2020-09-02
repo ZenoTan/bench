@@ -161,7 +161,7 @@ func (s *scaleOut) createReport() (string, error) {
 	defer cancel()
 	result, warnings, err := v1api.Query(ctx,
 		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
-			" / sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"})", s.t.addTime)
+			" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.addTime)
 	if err != nil {
 		log.Error("error querying Prometheus", zap.Error(err))
 	}
