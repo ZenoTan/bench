@@ -304,9 +304,9 @@ func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err
 	compactionTag := "compaction:  \n"
 	latencyTag := "latency:  \n"
 	plainText += balanceTag + reportLine("balance_time", float64(last.BalanceInterval), float64(cur.BalanceInterval))
-	plainText += scheduleTag + reportLine("balance_leader_count",
+	plainText += scheduleTag + reportLine("balance_leader_operator_count",
 		float64(last.CurBalanceLeaderCount-last.PrevBalanceLeaderCount), float64(cur.CurBalanceLeaderCount-cur.PrevBalanceLeaderCount))
-	plainText += reportLine("balance_region_count",
+	plainText += reportLine("balance_region_operator_count",
 		float64(last.CurBalanceRegionCount-last.PrevBalanceRegionCount), float64(cur.CurBalanceRegionCount-cur.PrevBalanceRegionCount))
 	plainText += compactionTag + reportLine("compaction_flow_bytes",
 		last.CurCompactionRate-last.PrevCompactionRate, cur.CurCompactionRate-cur.PrevCompactionRate)
