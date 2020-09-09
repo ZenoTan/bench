@@ -87,7 +87,10 @@ func (s *scaleOut) isBalance() (bool, error) {
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	matrix := s.c.getMatrixMetric("pd_scheduler_store_status{type=\"region_score\"}", r)
+	matrix, err := s.c.getMatrixMetric("pd_scheduler_store_status{type=\"region_score\"}", r)
+	if err != nil {
+		return false, err
+	}
 	// if low deviation in a series of scores applies to all stores, then it is balanced.
 	for _, store := range matrix {
 		if len(store) != 10 {
@@ -95,11 +98,11 @@ func (s *scaleOut) isBalance() (bool, error) {
 		}
 		mean := 0.0
 		dev := 0.0
-		for _, v := range store {
-			mean += v / 10
+		for _, score := range store {
+			mean += score / 10
 		}
-		for _, v := range store {
-			dev += (v - mean) * (v - mean) / 10
+		for _, score := range store {
+			dev += (score - mean) * (score - mean) / 10
 		}
 		if mean*mean*0.02 < dev {
 			return false, nil

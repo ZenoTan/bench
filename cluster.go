@@ -146,12 +146,13 @@ func (c *Cluster) GetLastReport() (*WorkloadReport, error) {
 	return &reports[0], nil
 }
 
-func (c *Cluster) getMetric(query string, t time.Time) float64 {
+func (c *Cluster) getMetric(query string, t time.Time) (float64, error) {
 	client, err := api.NewClient(api.Config{
 		Address: c.prometheus,
 	})
 	if err != nil {
 		log.Error("error creating client", zap.Error(err))
+		return 0, err
 	}
 
 	v1api := v1.NewAPI(client)
@@ -160,23 +161,25 @@ func (c *Cluster) getMetric(query string, t time.Time) float64 {
 	result, warnings, err := v1api.Query(ctx, query, t)
 	if err != nil {
 		log.Error("error querying Prometheus", zap.Error(err))
+		return 0, err
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
 	}
 	vector := result.(model.Vector)
 	if len(vector) >= 1 {
-		return float64(vector[0].Value)
+		return float64(vector[0].Value), nil
 	}
-	return 0
+	return 0, nil
 }
 
-func (c *Cluster) getMatrixMetric(query string, r v1.Range) [][]float64 {
+func (c *Cluster) getMatrixMetric(query string, r v1.Range) ([][]float64, error) {
 	client, err := api.NewClient(api.Config{
 		Address: c.prometheus,
 	})
 	if err != nil {
 		log.Error("error creating client", zap.Error(err))
+		return nil, err
 	}
 
 	v1api := v1.NewAPI(client)
@@ -185,6 +188,7 @@ func (c *Cluster) getMatrixMetric(query string, r v1.Range) [][]float64 {
 	result, warnings, err := v1api.QueryRange(ctx, query, r)
 	if err != nil {
 		log.Error("error querying Prometheus", zap.Error(err))
+		return nil, err
 	}
 	if len(warnings) > 0 {
 		log.Warn("query has warnings")
@@ -198,5 +202,5 @@ func (c *Cluster) getMatrixMetric(query string, r v1.Range) [][]float64 {
 		}
 		ret = append(ret, r)
 	}
- 	return ret
+ 	return ret, nil
 }
