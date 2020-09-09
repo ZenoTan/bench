@@ -154,13 +154,6 @@ func (s *scaleOut) createReport() (string, error) {
 	}
 	rep.CurLatency = value
 
-	value, err = s.c.getMetric("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
-		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.balanceTime)
-	if err != nil {
-		return "", err
-	}
-	rep.PrevLatency = value
-
 	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.addTime)
 	if err != nil {
 		return "", err
