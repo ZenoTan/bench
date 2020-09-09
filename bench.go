@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,9 +8,7 @@ import (
 	"time"
 
 	"github.com/pingcap/log"
-	"github.com/prometheus/client_golang/api"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/model"
 	"go.uber.org/zap"
 )
 
@@ -143,124 +140,66 @@ func (s *scaleOut) Collect() error {
 
 func (s *scaleOut) createReport() (string, error) {
 	rep := &stats{BalanceInterval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
-	client, err := api.NewClient(api.Config{
-		Address: s.c.prometheus,
-	})
+	value, err := s.c.getMetric("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
+		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.addTime)
 	if err != nil {
-		log.Error("error creating client", zap.Error(err))
+		return "", err
 	}
+	rep.PrevLatency = value
 
-	v1api := v1.NewAPI(client)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	result, warnings, err := v1api.Query(ctx,
-		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
-			" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.addTime)
+	value, err = s.c.getMetric("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
+		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.balanceTime)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
+		return "", err
 	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector := result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.PrevLatency = float64(vector[0].Value)
-	}
+	rep.CurLatency = value
 
-	result, warnings, err = v1api.Query(ctx,
-		"sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
-			" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.balanceTime)
+	value, err = s.c.getMetric("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
+		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.balanceTime)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
+		return "", err
 	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.CurLatency = float64(vector[0].Value)
-	}
+	rep.PrevLatency = value
 
-	result, warnings, err = v1api.Query(ctx,
-		"pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.balanceTime)
+	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.addTime)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
+		return "", err
 	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.CurBalanceLeaderCount = int(vector[0].Value)
-	}
+	rep.PrevBalanceLeaderCount = int(value)
 
-	result, warnings, err = v1api.Query(ctx,
-		"pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.balanceTime)
+	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.balanceTime)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
+		return "", err
 	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.CurBalanceRegionCount = int(vector[0].Value)
-	}
+	rep.CurBalanceLeaderCount = int(value)
 
-	result, warnings, err = v1api.Query(ctx,
-		"pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.addTime)
+	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.addTime)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
+		return "", err
 	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.PrevBalanceLeaderCount = int(vector[0].Value)
-	}
+	rep.PrevBalanceRegionCount = int(value)
 
-	result, warnings, err = v1api.Query(ctx,
-		"pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.addTime)
+	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.balanceTime)
 	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
+		return "", err
 	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
+	rep.CurBalanceRegionCount = int(value)
+
+	value, err = s.c.getMetric("sum(tikv_engine_compaction_flow_bytes)", s.t.addTime)
+	if err != nil {
+		return "", err
 	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.PrevBalanceRegionCount = int(vector[0].Value)
+	rep.PrevCompactionRate = value
+
+	value, err = s.c.getMetric("sum(tikv_engine_compaction_flow_bytes)", s.t.balanceTime)
+	if err != nil {
+		return "", err
 	}
+	rep.CurCompactionRate = value
+
 	bytes, err := json.Marshal(rep)
 	if err != nil {
 		log.Error("marshal error", zap.Error(err))
-	}
-
-	result, warnings, err = v1api.Query(ctx,
-		"sum(tikv_engine_compaction_flow_bytes)", s.t.balanceTime)
-	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
-	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.PrevCompactionRate = float64(vector[0].Value)
-	}
-
-	result, warnings, err = v1api.Query(ctx,
-		"sum(tikv_engine_compaction_flow_bytes)", time.Now())
-	if err != nil {
-		log.Error("error querying Prometheus", zap.Error(err))
-	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	vector = result.(model.Vector)
-	if len(vector) >= 1 {
-		rep.CurCompactionRate = float64(vector[0].Value)
 	}
 
 	return string(bytes), err
