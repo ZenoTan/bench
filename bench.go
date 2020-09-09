@@ -82,43 +82,26 @@ func (s *scaleOut) Run() error {
 }
 
 func (s *scaleOut) isBalance() (bool, error) {
-	client, err := api.NewClient(api.Config{
-		Address: s.c.prometheus,
-	})
-	if err != nil {
-		log.Error("error creating client", zap.Error(err))
-		return false, nil
-	}
-
-	v1api := v1.NewAPI(client)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	r := v1.Range{
 		Start: time.Now().Add(-9 * time.Minute),
 		End:   time.Now(),
 		Step:  time.Minute,
 	}
-	result, warnings, err := v1api.QueryRange(ctx, "pd_scheduler_store_status{type=\"region_score\"}", r)
-	if err != nil {
-		return false, err
-	}
-	if len(warnings) > 0 {
-		log.Warn("query has warnings")
-	}
-	matrix := result.(model.Matrix)
-	for _, data := range matrix {
-		if len(data.Values) != 10 {
+	matrix := s.c.getMatrixMetric("pd_scheduler_store_status{type=\"region_score\"}", r)
+	// if low deviation in a series of scores applies to all stores, then it is balanced.
+	for _, store := range matrix {
+		if len(store) != 10 {
 			return false, nil
 		}
 		mean := 0.0
 		dev := 0.0
-		for _, v := range data.Values {
-			mean += float64(v.Value) / 10
+		for _, v := range store {
+			mean += v / 10
 		}
-		for _, v := range data.Values {
-			dev += (float64(v.Value) - mean) * (float64(v.Value) - mean) / 10
+		for _, v := range store {
+			dev += (v - mean) * (v - mean) / 10
 		}
-		if mean*mean*0.1 < dev {
+		if mean*mean*0.02 < dev {
 			return false, nil
 		}
 	}

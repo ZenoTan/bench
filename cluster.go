@@ -1,13 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jinzhu/gorm"
 	"github.com/pingcap/errors"
+	"github.com/pingcap/log"
+	"github.com/prometheus/client_golang/api"
+	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
+	"go.uber.org/zap"
 )
 
 const (
@@ -137,4 +144,59 @@ func (c *Cluster) GetLastReport() (*WorkloadReport, error) {
 		return nil, err
 	}
 	return &reports[0], nil
+}
+
+func (c *Cluster) getMetric(query string, t time.Time) float64 {
+	client, err := api.NewClient(api.Config{
+		Address: c.prometheus,
+	})
+	if err != nil {
+		log.Error("error creating client", zap.Error(err))
+	}
+
+	v1api := v1.NewAPI(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, warnings, err := v1api.Query(ctx, query, t)
+	if err != nil {
+		log.Error("error querying Prometheus", zap.Error(err))
+	}
+	if len(warnings) > 0 {
+		log.Warn("query has warnings")
+	}
+	vector := result.(model.Vector)
+	if len(vector) >= 1 {
+		return float64(vector[0].Value)
+	}
+	return 0
+}
+
+func (c *Cluster) getMatrixMetric(query string, r v1.Range) [][]float64 {
+	client, err := api.NewClient(api.Config{
+		Address: c.prometheus,
+	})
+	if err != nil {
+		log.Error("error creating client", zap.Error(err))
+	}
+
+	v1api := v1.NewAPI(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result, warnings, err := v1api.QueryRange(ctx, query, r)
+	if err != nil {
+		log.Error("error querying Prometheus", zap.Error(err))
+	}
+	if len(warnings) > 0 {
+		log.Warn("query has warnings")
+	}
+	matrix := result.(model.Matrix)
+	var ret [][]float64
+	for _, m := range matrix {
+		var r []float64
+		for _, v := range m.Values {
+			r = append(r, float64(v.Value))
+		}
+		ret = append(ret, r)
+	}
+ 	return ret
 }
