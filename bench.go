@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/pingcap/errors"
 	"github.com/pingcap/log"
 	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"go.uber.org/zap"
@@ -41,6 +42,11 @@ type stats struct {
 	PrevCompactionRate     float64 `json:"prevCompactionRate"`
 	CurCompactionRate      float64 `json:"curCompactionRate"`
 }
+
+const (
+	Int  = iota
+	Float64
+)
 
 type scaleOut struct {
 	c   *Cluster
@@ -89,16 +95,16 @@ func (s *scaleOut) isBalance() (bool, error) {
 		return false, err
 	}
 	// if low deviation in a series of scores applies to all stores, then it is balanced.
-	for _, store := range matrix {
-		if len(store) != 10 {
+	for _, scores := range matrix {
+		if len(scores) != 10 {
 			return false, nil
 		}
 		mean := 0.0
 		dev := 0.0
-		for _, score := range store {
+		for _, score := range scores {
 			mean += score / 10
 		}
-		for _, score := range store {
+		for _, score := range scores {
 			dev += (score - mean) * (score - mean) / 10
 		}
 		if mean*mean*0.02 < dev {
@@ -138,57 +144,52 @@ func (s *scaleOut) Collect() error {
 	return s.c.SendReport(data, plainText)
 }
 
+func (s *scaleOut) queryPrevCur(query string, prevArg, curArg interface{}, typ int) error {
+	prevValue, err := s.c.getMetric(query, s.t.addTime)
+	if err != nil {
+		return err
+	}
+	curValue, err := s.c.getMetric(query, s.t.balanceTime)
+	if err != nil {
+		return err
+	}
+	if typ == Int {
+		*(prevArg.(*int)) = int(prevValue)
+		*(curArg.(*int)) = int(curValue)
+	} else if typ == Float64 {
+		*(prevArg.(*float64)) = prevValue
+		*(curArg.(*float64)) = curValue
+	} else {
+		return errors.New("Type not supported")
+	}
+	return nil
+}
+
 func (s *scaleOut) createReport() (string, error) {
 	rep := &stats{BalanceInterval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
-	value, err := s.c.getMetric("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
-		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.addTime)
+	err := s.queryPrevCur("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
+		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)",
+		&rep.PrevLatency, &rep.CurLatency, Float64)
 	if err != nil {
 		return "", err
 	}
-	rep.PrevLatency = value
 
-	value, err = s.c.getMetric("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
-		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)", s.t.balanceTime)
+	err = s.queryPrevCur("pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}",
+		&rep.PrevBalanceLeaderCount, &rep.CurBalanceLeaderCount, Int)
 	if err != nil {
 		return "", err
 	}
-	rep.CurLatency = value
 
-	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.addTime)
+	err = s.queryPrevCur("pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}",
+		&rep.PrevBalanceRegionCount, &rep.CurBalanceRegionCount, Int)
 	if err != nil {
 		return "", err
 	}
-	rep.PrevBalanceLeaderCount = int(value)
 
-	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-leader-scheduler\", name=\"schedule\"}", s.t.balanceTime)
+	err = s.queryPrevCur("sum(tikv_engine_compaction_flow_bytes)", &rep.PrevCompactionRate, &rep.CurCompactionRate, Float64)
 	if err != nil {
 		return "", err
 	}
-	rep.CurBalanceLeaderCount = int(value)
-
-	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.addTime)
-	if err != nil {
-		return "", err
-	}
-	rep.PrevBalanceRegionCount = int(value)
-
-	value, err = s.c.getMetric("pd_scheduler_event_count{type=\"balance-region-scheduler\", name=\"schedule\"}", s.t.balanceTime)
-	if err != nil {
-		return "", err
-	}
-	rep.CurBalanceRegionCount = int(value)
-
-	value, err = s.c.getMetric("sum(tikv_engine_compaction_flow_bytes)", s.t.addTime)
-	if err != nil {
-		return "", err
-	}
-	rep.PrevCompactionRate = value
-
-	value, err = s.c.getMetric("sum(tikv_engine_compaction_flow_bytes)", s.t.balanceTime)
-	if err != nil {
-		return "", err
-	}
-	rep.CurCompactionRate = value
 
 	bytes, err := json.Marshal(rep)
 	if err != nil {
