@@ -170,7 +170,7 @@ func (c *Cluster) GetLastReport() (*WorkloadReport, error) {
 
 func (c *Cluster) getMetric(query string, t time.Time) (float64, error) {
 	client, err := api.NewClient(api.Config{
-		Address: c.prometheus,
+		Address: c.prometheusAddr,
 	})
 	if err != nil {
 		log.Error("error creating client", zap.Error(err))
@@ -197,7 +197,7 @@ func (c *Cluster) getMetric(query string, t time.Time) (float64, error) {
 
 func (c *Cluster) getMatrixMetric(query string, r v1.Range) ([][]float64, error) {
 	client, err := api.NewClient(api.Config{
-		Address: c.prometheus,
+		Address: c.prometheusAddr,
 	})
 	if err != nil {
 		log.Error("error creating client", zap.Error(err))
