@@ -1,4 +1,4 @@
-package main
+package bench
 
 import (
 	"encoding/json"
@@ -66,20 +66,31 @@ func NewScaleOut(c *Cluster) Bench {
 }
 
 func (s *scaleOut) Run() error {
+	preStoreNum := s.c.getStoreNum()
 	for i := 0; i < s.num; i++ {
 		if err := s.c.AddStore(); err != nil {
 			return err
 		}
 	}
+	s.waitScaleOut(preStoreNum)
 	s.t.addTime = time.Now()
 	for {
-		time.Sleep(time.Second)
 		bal, err := s.isBalance()
 		if err != nil {
 			return err
 		}
 		if bal {
 			return nil
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func (s *scaleOut) waitScaleOut(preStoreNum int) {
+	for {
+		time.Sleep(time.Second)
+		if s.num+preStoreNum == s.c.getStoreNum() {
+			return
 		}
 	}
 }
@@ -146,9 +157,6 @@ func (s *scaleOut) Collect() error {
 
 func (s *scaleOut) queryPrevCur(query string, prevArg, curArg interface{}, typ int) error {
 	prevValue, err := s.c.getMetric(query, s.t.addTime)
-	if err != nil {
-		return err
-	}
 	curValue, err := s.c.getMetric(query, s.t.balanceTime)
 	if err != nil {
 		return err

@@ -1,10 +1,11 @@
-package main
+package bench
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -18,9 +19,9 @@ import (
 )
 
 const (
-	resourcePrefix = "api/cluster/resource/%v"
-	scaleOutPrefix = "api/cluster/scale_out/%v/%v/%v"
-	resultsPrefix  = "api/cluster/workload/%v/result"
+	ResourcePrefix = "api/cluster/resource/%v"
+	ScaleOutPrefix = "api/cluster/scale_out/%v/%v/%v"
+	ResultsPrefix  = "api/cluster/workload/%v/result"
 )
 
 type Spec struct {
@@ -40,14 +41,14 @@ type ResourceRequestItem struct {
 	Components string `gorm:"column:components" json:"components"`
 }
 
-func (r *ResourceRequestItem) isAvailable(toScale string) bool {
+func (r *ResourceRequestItem) hasNum(style string) (num int) {
 	components := strings.Split(r.Components, "|")
 	for _, component := range components {
-		if component == toScale {
-			return false
+		if component == style {
+			num++
 		}
 	}
-	return true
+	return num
 }
 
 type WorkloadReport struct {
@@ -58,55 +59,76 @@ type WorkloadReport struct {
 }
 
 type Cluster struct {
-	name       string
-	tidb       string
-	pd         string
-	prometheus string
-	api        string
-	client     *http.Client
+	name           string
+	tidbAddr       string
+	pdAddr         string
+	prometheusAddr string
+	apiAddr        string
+	client         *http.Client
 }
 
-func NewCluster(name, tidb, pd, prometheus, api string) *Cluster {
+func NewCluster() *Cluster {
 	return &Cluster{
-		name:       name,
-		tidb:       tidb,
-		pd:         pd,
-		prometheus: prometheus,
-		api:        api,
-		client:     &http.Client{},
+		name:           os.Getenv("CLUSTER_NAME"),
+		tidbAddr:       os.Getenv("TIDB_ADDR"),
+		pdAddr:         os.Getenv("PD_ADDR"),
+		prometheusAddr: os.Getenv("PROM_ADDR"),
+		apiAddr:        os.Getenv("API_SERVER"),
+		client:         &http.Client{},
 	}
+}
+
+func (c *Cluster) SetApiServer(apiAddr string) {
+	c.apiAddr = apiAddr
+}
+
+func (c *Cluster) SetName(name string) {
+	c.name = name
 }
 
 func (c *Cluster) joinUrl(prefix string) string {
-	return c.api + "/" + prefix
+	return c.apiAddr + "/" + prefix
 }
 
-func (c *Cluster) getAvailableResourceID(component string) (uint, error) {
-	// get all nodes
-	prefix := fmt.Sprintf(resourcePrefix, c.name)
+func (c *Cluster) getAllResource() ([]ResourceRequestItem, error) {
+	prefix := fmt.Sprintf(ResourcePrefix, c.name)
 	url := c.joinUrl(prefix)
 	resp, err := doRequest(url, http.MethodGet)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	resources := make([]ResourceRequestItem, 0, 0)
 	err = json.Unmarshal([]byte(resp), &resources)
-	if err != nil {
-		return 0, err
-	}
+	return resources, err
+}
 
+func (c *Cluster) getAvailableResourceID(component string) (uint, error) {
+	resources, err := c.getAllResource()
+	if err != nil {
+		return 0, errors.New("failed to get all resource")
+	}
 	// select available
 	for _, resource := range resources {
-		if resource.isAvailable(component) {
+		if resource.hasNum(component) == 0 {
 			return resource.ID, nil
 		}
 	}
-
 	return 0, errors.New("no available resources")
 }
 
+func (c *Cluster) getStoreNum() (num int) {
+	resources, err := c.getAllResource()
+	if err != nil {
+		return 0
+	}
+	for _, resource := range resources {
+		num += resource.hasNum("tikv")
+	}
+	return num
+}
+
 func (c *Cluster) scaleOut(component string, id uint) error {
-	prefix := fmt.Sprintf(scaleOutPrefix, c.name, id, component)
+	prefix := fmt.Sprintf(ScaleOutPrefix, c.name, id, component)
 	url := c.joinUrl(prefix)
 	_, err := doRequest(url, http.MethodPost)
 	return err
@@ -122,7 +144,7 @@ func (c *Cluster) AddStore() error {
 }
 
 func (c *Cluster) SendReport(data, plainText string) error {
-	prefix := fmt.Sprintf(resultsPrefix, c.name)
+	prefix := fmt.Sprintf(ResultsPrefix, c.name)
 	url := c.joinUrl(prefix)
 	return postJSON(url, map[string]interface{}{
 		"data":      data,
@@ -131,7 +153,7 @@ func (c *Cluster) SendReport(data, plainText string) error {
 }
 
 func (c *Cluster) GetLastReport() (*WorkloadReport, error) {
-	prefix := fmt.Sprintf(resultsPrefix, c.name)
+	prefix := fmt.Sprintf(ResultsPrefix, c.name)
 	url := c.joinUrl(prefix)
 	resp, err := doRequest(url, http.MethodGet)
 	if err != nil {
