@@ -157,6 +157,9 @@ func (s *scaleOut) Collect() error {
 
 func (s *scaleOut) queryPrevCur(query string, prevArg, curArg interface{}, typ int) error {
 	prevValue, err := s.c.getMetric(query, s.t.addTime)
+	if err != nil {
+		return err
+	}
 	curValue, err := s.c.getMetric(query, s.t.balanceTime)
 	if err != nil {
 		return err
