@@ -1,14 +1,11 @@
-package main
+package bench
 
 import (
-	"bytes"
-	"errors"
-	"os/exec"
 	"strings"
 
-	"github.com/pingcap/log"
+	"github.com/lhy1024/bench/utils"
+	"github.com/pingcap/errors"
 	"github.com/siddontang/go-mysql/client"
-	"go.uber.org/zap"
 )
 
 type Importer interface {
@@ -40,18 +37,14 @@ func splitAddr(addr string) (string, string, error) {
 }
 
 func (l *ycsb) Import() error {
-	host, port, err := splitAddr(l.c.tidb)
+	host, port, err := splitAddr(l.c.tidbAddr)
 	if err != nil {
 		return err
 	}
 	// go-ycsb insert
-	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("./go-ycsb/go-ycsb", "Import", "mysql", "-P", "./go-ycsb/"+l.workload, "-p", "mysql.user=root", "-p", "mysql.db="+l.dbName,
+	cmd := utils.NewCommand("./go-ycsb/go-ycsb", "Import", "mysql", "-P", "./go-ycsb/"+l.workload, "-p", "mysql.user=root", "-p", "mysql.db="+l.dbName,
 		"-p", "mysql.host="+host, "-p", "mysql.port="+port)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
 	err = cmd.Run()
-	log.Debug("go-ycsb", zap.Strings("cmd", cmd.Args), zap.String("stdout", stdout.String()), zap.String("stderr", stderr.String()))
 	if err != nil {
 		return err
 	}
@@ -64,7 +57,7 @@ func (l *ycsb) Import() error {
 
 func (l *ycsb) split() error {
 	// split table
-	conn, err := client.Connect(l.c.tidb, "root", "", l.dbName)
+	conn, err := client.Connect(l.c.tidbAddr, "root", "", l.dbName)
 	if err != nil {
 		return err
 	}
