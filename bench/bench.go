@@ -229,7 +229,7 @@ func (s *scaleOut) createReport() (string, error) {
 
 func reportLine(head string, last float64, cur float64) string {
 	headPart := "\t* " + head + ": "
-	curPart := fmt.Sprintf("%.2f ", cur)
+	curPart := fmt.Sprintf("%.8f ", cur)
 	deltaPart := fmt.Sprintf("delta: %.2f%%  \n", (cur-last)*100/(last+1))
 	return headPart + curPart + deltaPart
 }
