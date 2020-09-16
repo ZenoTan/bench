@@ -26,6 +26,8 @@ RUN make simulator
 FROM alpine:3.5
 
 COPY --from=builder /src/bin/* /bin/
+COPY --from=builder /src/scripts/* /scripts/
 COPY --from=pdbuilder /go/src/github.com/tikv/pd/bin/pd-simulator /bin/
+COPY --from=pdbuilder /go/src/github.com/tikv/pd/conf/simconfig.toml conf/simconfig.toml
 
 CMD ["/bin/bench"]

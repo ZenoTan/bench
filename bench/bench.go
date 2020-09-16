@@ -291,7 +291,7 @@ func (s *simulatorBench) Collect() error {
 }
 
 func NewSimulator(cluster *Cluster) Bench {
-	path := os.Getenv("SIMULATOR_PATH")
+	path := "/src/scripts/sim"
 	return &simulatorBench{simPath: path, c: cluster}
 }
 
