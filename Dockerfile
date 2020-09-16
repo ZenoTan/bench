@@ -25,6 +25,9 @@ RUN make simulator
 
 FROM alpine:3.5
 
+WORKDIR /artifacts
+RUN mkdir conf
+
 COPY --from=builder /src/bin/* /bin/
 COPY --from=builder /src/scripts/* /scripts/
 COPY --from=pdbuilder /go/src/github.com/tikv/pd/bin/pd-simulator /bin/

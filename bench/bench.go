@@ -291,7 +291,7 @@ func (s *simulatorBench) Collect() error {
 }
 
 func NewSimulator(cluster *Cluster) Bench {
-	path := "/src/scripts/sim"
+	path := "/scripts/sim"
 	return &simulatorBench{simPath: path, c: cluster}
 }
 
