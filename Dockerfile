@@ -33,4 +33,6 @@ COPY --from=builder /src/scripts/* /scripts/
 COPY --from=pdbuilder /go/src/github.com/tikv/pd/bin/pd-simulator /bin/
 COPY --from=pdbuilder /go/src/github.com/tikv/pd/conf/simconfig.toml conf/simconfig.toml
 
+RUN chmod +x /scripts/*
+
 CMD ["/bin/bench"]

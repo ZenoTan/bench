@@ -281,7 +281,7 @@ type simulatorBench struct {
 }
 
 func (s *simulatorBench) Run() error {
-	cmd := utils.NewCommand(s.simPath)
+	cmd := utils.NewCommand(s.simPath, s.c.pdAddr)
 	err := cmd.Run()
 	return err
 }
