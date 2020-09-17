@@ -278,6 +278,7 @@ func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err
 type simulatorBench struct {
 	simPath string
 	c       *Cluster
+	report  string
 }
 
 func (s *simulatorBench) Run() error {
@@ -286,12 +287,12 @@ func (s *simulatorBench) Run() error {
 	if err != nil {
 		return err
 	}
-	err = s.c.SendReport(out, out)
-	return err
+	s.report = out
+	return nil
 }
 
 func (s *simulatorBench) Collect() error {
-	return nil
+	return s.c.SendReport(s.report, s.report)
 }
 
 func NewSimulator(cluster *Cluster) Bench {
