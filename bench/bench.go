@@ -301,6 +301,7 @@ func (s *simulatorBench) Collect() error {
 	if lastReport == nil { //first send
 		plainText = ""
 	} else { //second send
+		// todo: more complicated comparing
 		plainText = lastReport.Data + "\n  " + s.report
 		log.Info("Concat report success", zap.String("concat result", plainText))
 	}
