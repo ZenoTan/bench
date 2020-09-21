@@ -292,7 +292,19 @@ func (s *simulatorBench) Run() error {
 }
 
 func (s *simulatorBench) Collect() error {
-	return s.c.SendReport(s.report, s.report)
+	lastReport, err := s.c.GetLastReport()
+	if err != nil {
+		return err
+	}
+
+	var plainText string
+	if lastReport == nil { //first send
+		plainText = ""
+	} else { //second send
+		plainText = lastReport.Data + "\n  " + s.report
+		log.Info("Concat report success", zap.String("concat result", plainText))
+	}
+	return s.c.SendReport(s.report, plainText)
 }
 
 func NewSimulator(cluster *Cluster) Bench {
