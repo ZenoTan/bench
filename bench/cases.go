@@ -1,8 +1,7 @@
 package bench
 
 type Case struct {
-	Exporter
-	Importer
+	Generator
 	Bench
 }
 
@@ -13,6 +12,7 @@ type Benches struct {
 func NewBenches(cluster *Cluster) *Benches {
 	caseMap := make(map[string]*Case)
 	caseMap["scale-out"] = CreateScaleOutCase(cluster)
+	caseMap["sim-import"] = CreateSimulatorCase(cluster, "import")
 	return &Benches{
 		cases: caseMap,
 	}

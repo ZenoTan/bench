@@ -8,8 +8,8 @@ import (
 	"github.com/siddontang/go-mysql/client"
 )
 
-type Importer interface {
-	Import() error
+type Generator interface {
+	Generate() error
 }
 
 type ycsb struct {
@@ -19,7 +19,7 @@ type ycsb struct {
 	withEmptyRegion bool
 }
 
-func NewYCSB(c *Cluster, workload string) Importer {
+func NewYCSB(c *Cluster, workload string) Generator {
 	return &ycsb{
 		c:               c,
 		workload:        workload,
@@ -36,15 +36,15 @@ func splitAddr(addr string) (string, string, error) {
 	return subs[0], subs[1], nil
 }
 
-func (l *ycsb) Import() error {
+func (l *ycsb) Generate() error {
 	host, port, err := splitAddr(l.c.tidbAddr)
 	if err != nil {
 		return err
 	}
 	// go-ycsb insert
-	cmd := utils.NewCommand("./go-ycsb/go-ycsb", "Import", "mysql", "-P", "./go-ycsb/"+l.workload, "-p", "mysql.user=root", "-p", "mysql.db="+l.dbName,
+	cmd := utils.NewCommand("./go-ycsb/go-ycsb", "load", "mysql", "-P", "./go-ycsb/"+l.workload, "-p", "mysql.user=root", "-p", "mysql.db="+l.dbName,
 		"-p", "mysql.host="+host, "-p", "mysql.port="+port)
-	err = cmd.Run()
+	_, err = cmd.Run()
 	if err != nil {
 		return err
 	}
@@ -72,5 +72,16 @@ func (l *ycsb) split() error {
 	if res.RowNumber() < 1000 {
 		return errors.New("split region failed")
 	}
+	return nil
+}
+
+func NewEmptyGenerator() Generator {
+	return &emptyGenerator{}
+}
+
+type emptyGenerator struct {
+}
+
+func (l *emptyGenerator) Generate() error {
 	return nil
 }

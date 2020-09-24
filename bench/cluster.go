@@ -24,19 +24,13 @@ const (
 	ResultsPrefix  = "api/cluster/workload/%v/result"
 )
 
-type Spec struct {
-	CPU  string
-	Mem  string
-	Disk string
-}
-
+// ResourceRequestItem ...
 type ResourceRequestItem struct {
 	gorm.Model
-	ItemID uint   `gorm:"column:item_id;unique;not null" json:"item_id"`
-	Spec   Spec   `gorm:"column:spec;type:longtext;not null" json:"spec"`
-	Status string `gorm:"column:status;type:varchar(255);not null" json:"status"`
-	RRID   uint   `gorm:"column:rr_id;not null" json:"rr_id"`
-	RID    uint   `gorm:"column:r_id;not null" json:"r_id"`
+	ItemID       uint   `gorm:"column:item_id;unique;not null" json:"item_id"`
+	InstanceType string `gorm:"column:instance_type;type:varchar(100);not null" json:"instance_type"`
+	RRID         uint   `gorm:"column:rr_id;not null" json:"rr_id"`
+	RID          uint   `gorm:"column:r_id" json:"r_id"`
 	// Components records which *_servers are serving on this machine
 	Components string `gorm:"column:components" json:"components"`
 }
@@ -59,6 +53,7 @@ type WorkloadReport struct {
 }
 
 type Cluster struct {
+	id             string
 	name           string
 	tidbAddr       string
 	pdAddr         string
@@ -69,6 +64,7 @@ type Cluster struct {
 
 func NewCluster() *Cluster {
 	return &Cluster{
+		id:             os.Getenv("CLUSTER_ID"),
 		name:           os.Getenv("CLUSTER_NAME"),
 		tidbAddr:       os.Getenv("TIDB_ADDR"),
 		pdAddr:         os.Getenv("PD_ADDR"),
@@ -82,6 +78,10 @@ func (c *Cluster) SetApiServer(apiAddr string) {
 	c.apiAddr = apiAddr
 }
 
+func (c *Cluster) SetID(id string) {
+	c.id = id
+}
+
 func (c *Cluster) SetName(name string) {
 	c.name = name
 }
@@ -91,7 +91,7 @@ func (c *Cluster) joinUrl(prefix string) string {
 }
 
 func (c *Cluster) getAllResource() ([]ResourceRequestItem, error) {
-	prefix := fmt.Sprintf(ResourcePrefix, c.name)
+	prefix := fmt.Sprintf(ResourcePrefix, c.id)
 	url := c.joinUrl(prefix)
 	resp, err := doRequest(url, http.MethodGet)
 	if err != nil {
@@ -128,7 +128,7 @@ func (c *Cluster) getStoreNum() (num int) {
 }
 
 func (c *Cluster) scaleOut(component string, id uint) error {
-	prefix := fmt.Sprintf(ScaleOutPrefix, c.name, id, component)
+	prefix := fmt.Sprintf(ScaleOutPrefix, c.id, id, component)
 	url := c.joinUrl(prefix)
 	_, err := doRequest(url, http.MethodPost)
 	return err
@@ -144,7 +144,7 @@ func (c *Cluster) AddStore() error {
 }
 
 func (c *Cluster) SendReport(data, plainText string) error {
-	prefix := fmt.Sprintf(ResultsPrefix, c.name)
+	prefix := fmt.Sprintf(ResultsPrefix, c.id)
 	url := c.joinUrl(prefix)
 	return postJSON(url, map[string]interface{}{
 		"data":      data,
@@ -153,7 +153,7 @@ func (c *Cluster) SendReport(data, plainText string) error {
 }
 
 func (c *Cluster) GetLastReport() (*WorkloadReport, error) {
-	prefix := fmt.Sprintf(ResultsPrefix, c.name)
+	prefix := fmt.Sprintf(ResultsPrefix, c.id)
 	url := c.joinUrl(prefix)
 	resp, err := doRequest(url, http.MethodGet)
 	if err != nil {
@@ -224,5 +224,5 @@ func (c *Cluster) getMatrixMetric(query string, r v1.Range) ([][]float64, error)
 		}
 		ret = append(ret, r)
 	}
- 	return ret, nil
+	return ret, nil
 }
