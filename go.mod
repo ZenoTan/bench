@@ -3,6 +3,7 @@ module github.com/lhy1024/bench
 go 1.14
 
 require (
+	github.com/go-echarts/go-echarts v1.0.0
 	github.com/gorilla/mux v1.7.3
 	github.com/jinzhu/gorm v1.9.16
 	github.com/pingcap/check v0.0.0-20190102082844-67f458068fc8
