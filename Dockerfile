@@ -31,6 +31,7 @@ RUN git clone https://github.com/tikv/pd.git .
 RUN make simulator
 RUN make pd-ctl
 
+
 FROM alpine:3.5
 
 WORKDIR /artifacts
