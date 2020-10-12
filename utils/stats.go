@@ -110,7 +110,7 @@ func (s *scaleOutStats) Report() string {
 	text := "Label:\n"
 	for i, s := range scaleOutStatsOrder {
 		text += "p" + strconv.Itoa(i) + ": " + s + "\n"
-		text += fmt.Sprintf("standard(last, red) is %.6f\n", m[s][0])
+		text += fmt.Sprintf("PR(last, red) is %.6f\n", m[s][0])
 	}
 	return text
 }

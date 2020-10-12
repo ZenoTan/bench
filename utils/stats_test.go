@@ -17,11 +17,12 @@ type testStatsSuite struct{}
 var _ = Suite(&testStatsSuite{})
 
 func (s *testStatsSuite) TestScaleOutStats(c *C) {
-	var prev, cur ScaleOutOnce
-	prev.BalanceInterval = 120
-	cur.BalanceInterval = 100
-	prev.PrevLatency = 0.735
-	cur.PrevLatency = 0.893
+	prev := ScaleOutOnce{10, 11,12, 13,
+		12, 11, 10, 9, 8, 7,
+		6, 5, 4}
+	cur := ScaleOutOnce{10, 9,8, 7,
+		6, 5, 6, 7, 8, 9,
+		10, 11, 12}
 	bytes1, _ := json.Marshal(prev)
 	bytes2, _ := json.Marshal(cur)
 	stats := &scaleOutStats{}
@@ -29,5 +30,5 @@ func (s *testStatsSuite) TestScaleOutStats(c *C) {
 	stats.RenderTo("test_scale.html")
 	report := stats.Report()
 	c.Assert(strings.Contains(report, "p0: BalanceInterval"), Equals, true)
-	c.Assert(strings.Contains(report, "standard(last, red) is"), Equals, true)
+	c.Assert(strings.Contains(report, "PR(last, red) is"), Equals, true)
 }
