@@ -89,12 +89,12 @@ func (s *scaleOutStats) RenderTo(fileName string) {
 	var lastData, curData []float64
 	for _, stat := range scaleOutStatsOrder {
 		mid := (m[stat][0] + m[stat][1]) / 2
-		lastData = append(lastData, m[stat][0] / (mid + 1e-6))
-		curData = append(curData, m[stat][1] / (mid + 1e-6))
+		lastData = append(lastData, m[stat][0]/(mid+1e-6))
+		curData = append(curData, m[stat][1]/(mid+1e-6))
 	}
 	var xAxis []string
 	for i := range scaleOutStatsOrder {
-		xAxis = append(xAxis, "p" + strconv.Itoa(i))
+		xAxis = append(xAxis, "p"+strconv.Itoa(i))
 	}
 	bar := charts.NewBar()
 	bar.SetGlobalOptions(charts.TitleOpts{Title: "scale out stats"}, charts.ToolboxOpts{Show: true})
