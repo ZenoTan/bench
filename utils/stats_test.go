@@ -26,9 +26,12 @@ func (s *testStatsSuite) TestScaleOutStats(c *C) {
 	bytes1, _ := json.Marshal(prev)
 	bytes2, _ := json.Marshal(cur)
 	stats := &scaleOutStats{}
-	stats.Init(string(bytes1), string(bytes2))
-	stats.RenderTo("test_scale.html")
-	report := stats.Report()
+	err := stats.Init(string(bytes1), string(bytes2))
+	c.Assert(err, IsNil)
+	err = stats.RenderTo("test_scale.html")
+	c.Assert(err, IsNil)
+	report, err := stats.Report()
+	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(report, "p0: BalanceInterval"), Equals, true)
 	c.Assert(strings.Contains(report, "PR(last, red) is"), Equals, true)
 }

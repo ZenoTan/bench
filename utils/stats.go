@@ -11,10 +11,10 @@ import (
 )
 
 type CompareStats interface {
-	Init(last, cur string)
-	CollectFrom(fileName string)
-	RenderTo(fileName string)
-	Report() string
+	Init(last, cur string) error
+	CollectFrom(fileName string) error
+	RenderTo(fileName string) error
+	Report() (string, error)
 }
 
 var scaleOutStatsOrder = []string{
@@ -54,13 +54,20 @@ type scaleOutStats struct {
 	statsMap *map[string][2]float64
 }
 
-func (s *scaleOutStats) Init(last, cur string) {
+func (s *scaleOutStats) Init(last, cur string) error {
 	if last == "" || cur == "" {
-		return
+		return nil
 	}
 	var lastStats, curStats ScaleOutOnce
-	json.Unmarshal([]byte(last), &lastStats)
-	json.Unmarshal([]byte(cur), &curStats)
+	var err error
+	err = json.Unmarshal([]byte(last), &lastStats)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal([]byte(cur), &curStats)
+	if err != nil {
+		return err
+	}
 	m := make(map[string][2]float64)
 	t := reflect.TypeOf(lastStats)
 	v1 := reflect.ValueOf(lastStats)
@@ -77,14 +84,15 @@ func (s *scaleOutStats) Init(last, cur string) {
 		m[t.Field(i).Name] = [2]float64{val1, val2}
 	}
 	s.statsMap = &m
+	return nil
 }
 
-func (s *scaleOutStats) CollectFrom(fileName string) {
+func (s *scaleOutStats) CollectFrom(fileName string) error {
 	// todo: load from file
-	return
+	return nil
 }
 
-func (s *scaleOutStats) RenderTo(fileName string) {
+func (s *scaleOutStats) RenderTo(fileName string) error {
 	m := *s.statsMap
 	var lastData, curData []float64
 	for _, stat := range scaleOutStatsOrder {
@@ -102,15 +110,15 @@ func (s *scaleOutStats) RenderTo(fileName string) {
 		AddYAxis("last", lastData).
 		AddYAxis("cur", curData)
 	f, _ := os.Create(fileName)
-	bar.Render(f)
+	return bar.Render(f)
 }
 
-func (s *scaleOutStats) Report() string {
+func (s *scaleOutStats) Report() (string, error) {
 	m := *s.statsMap
 	text := "Label:\n"
 	for i, s := range scaleOutStatsOrder {
 		text += "p" + strconv.Itoa(i) + ": " + s + "\n"
 		text += fmt.Sprintf("PR(last, red) is %.6f\n", m[s][0])
 	}
-	return text
+	return text, nil
 }
