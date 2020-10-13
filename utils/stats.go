@@ -10,7 +10,7 @@ import (
 	"github.com/go-echarts/go-echarts/charts"
 )
 
-type CompareStats interface {
+type compareStats interface {
 	Init(last, cur string) error
 	CollectFrom(fileName string) error
 	RenderTo(fileName string) error
@@ -33,7 +33,7 @@ var scaleOutStatsOrder = []string{
 	"CurDbMutex",
 }
 
-type ScaleOutOnce struct {
+type scaleOutOnce struct {
 	BalanceInterval        int     `json:"BalanceInterval"`
 	PrevBalanceLeaderCount int     `json:"PrevBalanceLeaderCount"`
 	PrevBalanceRegionCount int     `json:"PrevBalanceRegionCount"`
@@ -50,7 +50,7 @@ type ScaleOutOnce struct {
 }
 
 type scaleOutStats struct {
-	CompareStats
+	compareStats
 	statsMap *map[string][2]float64
 }
 
@@ -58,7 +58,7 @@ func (s *scaleOutStats) Init(last, cur string) error {
 	if last == "" || cur == "" {
 		return nil
 	}
-	var lastStats, curStats ScaleOutOnce
+	var lastStats, curStats scaleOutOnce
 	var err error
 	err = json.Unmarshal([]byte(last), &lastStats)
 	if err != nil {
