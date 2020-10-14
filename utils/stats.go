@@ -56,7 +56,6 @@ type ScaleOutStats struct {
 	statsMap *map[string][2]float64
 }
 
-
 // Init data
 func (s *ScaleOutStats) Init(last, cur string) error {
 	if last == "" || cur == "" {
