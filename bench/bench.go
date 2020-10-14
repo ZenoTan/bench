@@ -220,8 +220,8 @@ func reportLine(head string, last float64, cur float64) string {
 
 // lastReport is
 func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err error) {
-	last := &ScaleOutOnce{}
-	cur := &ScaleOutOnce{}
+	last := &utils.ScaleOutOnce{}
+	cur := &utils.ScaleOutOnce{}
 	err = json.Unmarshal([]byte(lastReport), last)
 	if err != nil {
 		return
@@ -230,7 +230,7 @@ func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err
 	if err != nil {
 		return
 	}
-	stats := &ScaleOutStats{}
+	stats := &utils.ScaleOutStats{}
 	err = stats.Init(lastReport, report)
 	if err != nil {
 		return
