@@ -165,7 +165,7 @@ func (s *scaleOut) queryPrevCur(query string, prevArg, curArg interface{}, typ i
 }
 
 func (s *scaleOut) createReport() (string, error) {
-	rep := &ScaleOutOnce{BalanceInterval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
+	rep := &utils.ScaleOutOnce{BalanceInterval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
 	err := s.queryPrevCur("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
 		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)",
 		&rep.PrevLatency, &rep.CurLatency, typeFloat64)
