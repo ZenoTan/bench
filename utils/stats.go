@@ -33,6 +33,7 @@ var scaleOutStatsOrder = []string{
 	"CurDbMutex",
 }
 
+// ScaleOutOnce is scale out stats once
 type ScaleOutOnce struct {
 	BalanceInterval        int     `json:"BalanceInterval"`
 	PrevBalanceLeaderCount int     `json:"PrevBalanceLeaderCount"`
@@ -49,11 +50,14 @@ type ScaleOutOnce struct {
 	CurDbMutex             float64 `json:"CurDbMutex"`
 }
 
+// ScaleOutStats is a compare of two ScaleOutOnce
 type ScaleOutStats struct {
 	compareStats
 	statsMap *map[string][2]float64
 }
 
+
+// Init data
 func (s *ScaleOutStats) Init(last, cur string) error {
 	if last == "" || cur == "" {
 		return nil
@@ -87,11 +91,13 @@ func (s *ScaleOutStats) Init(last, cur string) error {
 	return nil
 }
 
+// CollectFrom file report
 func (s *ScaleOutStats) CollectFrom(fileName string) error {
 	// todo: load from file
 	return nil
 }
 
+// RenderTo visualization
 func (s *ScaleOutStats) RenderTo(fileName string) error {
 	m := *s.statsMap
 	var lastData, curData []float64
@@ -113,6 +119,7 @@ func (s *ScaleOutStats) RenderTo(fileName string) error {
 	return bar.Render(f)
 }
 
+// Report stats
 func (s *ScaleOutStats) Report() (string, error) {
 	m := *s.statsMap
 	text := "Label:\n"
