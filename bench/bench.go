@@ -31,22 +31,6 @@ type timePoint struct {
 	balanceTime time.Time
 }
 
-type stats struct {
-	BalanceInterval        int     `json:"balanceInterval"`
-	PrevBalanceLeaderCount int     `json:"prevBalanceLeaderCount"`
-	PrevBalanceRegionCount int     `json:"prevBalanceRegionCount"`
-	CurBalanceLeaderCount  int     `json:"curBalanceLeaderCount"`
-	CurBalanceRegionCount  int     `json:"curBalanceRegionCount"`
-	PrevLatency            float64 `json:"prevLatency"`
-	CurLatency             float64 `json:"curLatency"`
-	PrevCompactionRate     float64 `json:"prevCompactionRate"`
-	CurCompactionRate      float64 `json:"curCompactionRate"`
-	PrevApplyLog           float64 `json:"prevApplyLog"`
-	CurApplyLog            float64 `json:"curApplyLog"`
-	PrevDbMutex            float64 `json:"prevDbMutex"`
-	CurDbMutex             float64 `json:"curDbMutex"`
-}
-
 const (
 	typeInt = iota
 	typeFloat64
@@ -181,7 +165,7 @@ func (s *scaleOut) queryPrevCur(query string, prevArg, curArg interface{}, typ i
 }
 
 func (s *scaleOut) createReport() (string, error) {
-	rep := &stats{BalanceInterval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
+	rep := &utils.ScaleOutOnce{BalanceInterval: int(s.t.balanceTime.Sub(s.t.addTime).Seconds())}
 	err := s.queryPrevCur("sum(tidb_server_handle_query_duration_seconds_sum{sql_type!=\"internal\"})"+
 		" / (sum(tidb_server_handle_query_duration_seconds_count{sql_type!=\"internal\"}) + 1)",
 		&rep.PrevLatency, &rep.CurLatency, typeFloat64)
@@ -236,8 +220,8 @@ func reportLine(head string, last float64, cur float64) string {
 
 // lastReport is
 func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err error) {
-	last := &stats{}
-	cur := &stats{}
+	last := &utils.ScaleOutOnce{}
+	cur := &utils.ScaleOutOnce{}
 	err = json.Unmarshal([]byte(lastReport), last)
 	if err != nil {
 		return
@@ -246,6 +230,20 @@ func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err
 	if err != nil {
 		return
 	}
+	stats := &utils.ScaleOutStats{}
+	err = stats.Init(lastReport, report)
+	if err != nil {
+		return
+	}
+	err = stats.RenderTo("stats.html")
+	if err != nil {
+		return
+	}
+	header, err := stats.Report()
+	if err != nil {
+		return
+	}
+	vis := createArtReport("visualization", "label", header)
 	title := "```diff  \n@@\t\t\tBenchmark diff\t\t\t@@\n"
 	splitLine := ""
 	for i := 0; i < 58; i++ {
@@ -254,6 +252,8 @@ func (s *scaleOut) mergeReport(lastReport, report string) (plainText string, err
 	splitLine += "\n"
 	plainText += title
 	plainText += splitLine
+	plainText += vis
+	plainText += "\n"
 	balanceTag := "balance:  \n"
 	scheduleTag := "schedule:  \n"
 	compactionTag := "compaction:  \n"
@@ -287,7 +287,7 @@ func (s *simulatorBench) Run() error {
 	if limit == "" {
 		limit = "2000"
 	}
-	ctl := utils.NewCommand("/bin/pd-ctl", "store", "limit", "all", limit)
+	ctl := utils.NewCommand("/bin/pd-ctl", "--pd", s.c.pdAddr, "store", "limit", "all", limit)
 	go func() {
 		time.Sleep(3 * time.Second)
 		_, err := ctl.Run()
@@ -313,9 +313,9 @@ func (s *simulatorBench) Collect() error {
 	var data string
 	if lastReport == nil { //first send
 		plainText = ""
-		data = createSimReport("last", s.report)
+		data = createArtReport("last", "simulator report", s.report)
 	} else { //second send
-		data = createSimReport("cur", s.report)
+		data = createArtReport("cur", "simulator report", s.report)
 		plainText = "```diff  \n"
 		plainText += lastReport.Data
 		plainText += data
@@ -337,10 +337,10 @@ func createSimulatorCase(cluster *cluster, simCase string) *benchCase {
 	}
 }
 
-func createSimReport(head, report string) string {
+func createArtReport(head, note, report string) string {
 	plainText := head + ":  \n"
 	plainText += "\t*artifacts link: " + os.Getenv("ARTIFACT_URL") + "/workload.tar.gz   \n"
-	plainText += "\t*simulator report:  \n"
+	plainText += "\t*" + note + "  \n"
 	plainText += report + "  \n"
 
 	return plainText
