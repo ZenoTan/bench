@@ -35,3 +35,9 @@ func (s *testStatsSuite) TestScaleOutStats(c *C) {
 	c.Assert(strings.Contains(report, "p0: BalanceInterval"), Equals, true)
 	c.Assert(strings.Contains(report, "PR(last, red) is"), Equals, true)
 }
+
+func (s *testStatsSuite) TestGroupStats(c *C) {
+	groupMap := make(map[string][]string)
+	groupDesc := make(map[string]string)
+	
+}

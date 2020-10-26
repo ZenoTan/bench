@@ -3,15 +3,88 @@ package utils
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"reflect"
 	"strconv"
 
 	"github.com/go-echarts/go-echarts/charts"
+	"github.com/pingcap/errors"
 )
+
+type GroupStats struct {
+	groupMap *map[string][]string
+	groupDesc *map[string]string
+	stats compareStats
+}
+
+// Init by group
+func (s *GroupStats) Init(groupMap *map[string][]string, groupDesc *map[string]string, stats compareStats) {
+	gm := make(map[string][]string)
+	gd := make(map[string]string)
+	for k, v := range *groupMap {
+		gm[k] = make([]string, len(v))
+		copy(gm[k], v)
+	}
+	for k, v := range *groupDesc {
+		gd[k] = v
+	}
+	s.groupMap = &gm
+	s.groupDesc = &gd
+}
+
+func (s *GroupStats) calcGroupWeight(group string) (float64, error) {
+	if names, ok := (*s.groupMap)[group]; !ok {
+		return 0, errors.Errorf("No group name")
+	} else {
+		var prevs, curs []float64
+		for _, name := range names {
+			prev, cur, err := s.stats.GetData(name)
+			if err != nil {
+				return 0, err
+			}
+			prevs = append(prevs, prev)
+			curs = append(curs, cur)
+		}
+		if prevs == nil || curs == nil {
+			return 0, errors.Errorf("No group data")
+		}
+		size := len(prevs)
+		sum := 0.0
+		for i := 0; i < size; i++ {
+			sum += math.Abs(prevs[i] - curs[i]) / math.Abs(prevs[i] + 1e-6)
+		}
+		sum /= float64(size)
+		return sum, nil
+	}
+}
+
+// Report to file for other use
+func (s *GroupStats) Report(fileName string) error {
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil
+	}
+	for k := range *s.groupMap {
+		weight, err := s.calcGroupWeight(k)
+		if err != nil {
+			return nil
+		}
+		_, err = file.WriteString(k + "\n")
+		if err != nil {
+			return nil
+		}
+		_, err = file.WriteString(strconv.FormatFloat(weight, 'f', 2, 64) + "\n")
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
+}
 
 type compareStats interface {
 	Init(last, cur string) error
+	GetData(dataName string) (float64, float64, error)
 	CollectFrom(fileName string) error
 	RenderTo(fileName string) error
 	Report() (string, error)
@@ -88,6 +161,14 @@ func (s *ScaleOutStats) Init(last, cur string) error {
 	}
 	s.statsMap = &m
 	return nil
+}
+
+func (s *ScaleOutStats) GetData(dataName string) (float64, float64, error) {
+	if stats, ok := (*s.statsMap)[dataName]; !ok {
+		return 0, 0, errors.Errorf("could not find data")
+	} else {
+		return stats[0], stats[1], nil
+	}
 }
 
 // CollectFrom file report
